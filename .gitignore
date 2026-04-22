@@ -1,0 +1,57 @@
+# Gradle
+.gradle/
+build/
+!gradle/wrapper/gradle-wrapper.jar
+!gradle-wrapper.properties
+!**/src/**/build/
+!**/src/**/build
+
+# IntelliJ / Android Studio
+.idea/
+*.iml
+*.ipr
+*.iws
+local.properties
+captures/
+.cxx/
+
+# Xcode / iOS
+xcuserdata/
+*.xcscmblueprint
+*.xccheckout
+DerivedData/
+build/Debug-*/
+build/Release-*/
+*.ipa
+*.xcarchive
+
+# KMP / Kotlin Native
+*.klib
+kotlin-js-store/
+
+# Node (only for tooling like openspec)
+node_modules/
+.pnp.*
+.yarn/
+
+# Misc
+.DS_Store
+Thumbs.db
+*.log
+*.tmp
+*.swp
+.env
+.env.local
+
+# Test / coverage
+.kotlin/
+kover/
+test-results/
+reports/
+
+# OpenSpec working artifacts (keep specs, drop generated)
+.openspec-cache/
+
+# CC session transients
+.claude/pending-docs/
+.claude/*.tmp
