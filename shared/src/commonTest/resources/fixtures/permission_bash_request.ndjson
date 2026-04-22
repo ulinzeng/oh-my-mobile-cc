@@ -1,0 +1,3 @@
+{"type":"system","subtype":"init","session_id":"w0-synthetic","model":"claude-sonnet-4.5","cwd":"/tmp","tools":["Bash","Read","Write"],"permission_mode":"default"}
+{"type":"assistant","message":{"id":"msg_01","role":"assistant","content":[{"type":"text","text":"I'll run ls /tmp."}]}}
+{"type":"permission_request","request_id":"perm_synthetic_01","session_id":"w0-synthetic","tool":"Bash","input":{"command":"ls /tmp","description":"list /tmp"},"reason":"Bash tool invocation requires user consent in default permission mode","proposed_at":1776842800000}

@@ -1,0 +1,5 @@
+-- Placeholder schema. Real tables (approvals, sessions, approval_policies) land in W2.3.
+CREATE TABLE IF NOT EXISTS placeholder (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    note TEXT NOT NULL
+);
