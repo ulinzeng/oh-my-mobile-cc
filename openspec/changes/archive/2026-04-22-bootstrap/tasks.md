@@ -27,7 +27,8 @@
 ## 4. 合规
 
 - [x] 4.1 `openspec validate bootstrap --strict` 绿
-- [ ] 4.2 提交 `feat/w0-bootstrap` 分支并创建 PR
-- [ ] 4.3 合并到 main 后 `openspec archive bootstrap`
+- [x] 4.2 `feat/w0-bootstrap` 已合并到 main（`4f3c8d9` --no-ff merge；直接合并，未走 PR 流程）
+- [x] 4.3 `openspec archive bootstrap` 已执行（W1 前清理；5 个 capability 迁移至 `openspec/specs/**`）
 
-> 注：4.2/4.3 由 `superpowers:finishing-a-development-branch` 在 W0 收尾时推进。
+> 注：W0 收尾未走 PR 流程（本地 --no-ff merge + push 到 GitHub），4.2 标记为完成。
+> 4.3 在 `feat/w0-closeout` 分支执行，与 W1 启动分离。
