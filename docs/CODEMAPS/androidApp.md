@@ -1,6 +1,6 @@
 # CODEMAP: androidApp
 
-_Generated 2026-04-23T10:10:52+0800 by .claude/scripts/gen-codemaps.sh_
+_Generated 2026-04-23T12:01:29+0800 by .claude/scripts/gen-codemaps.sh_
 
 Source root: `androidApp/src`
 
