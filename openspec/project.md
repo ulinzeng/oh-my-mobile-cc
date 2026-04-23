@@ -31,6 +31,8 @@
 | 文档 | OpenSpec CLI (`@fission-ai/openspec`) | 1.3.1+ | 真相源 |
 | 日志 | kermit | — | 统一 KMP 日志 |
 | 安全 | Ed25519（配对） + TLS 1.3 | — | 无硬编码 token |
+| 安全：Ed25519 实现 | BouncyCastle (`bcprov-jdk18on`) | 1.78+ | JVM + Android actual；iOS 在 W1.5 为 stub，W2.1 落地；ADR-0005 |
+| 安全：Ed25519 实现 | BouncyCastle (`bcprov-jdk18on`) | 1.78+ | JVM + Android actual；iOS 在 W1.5 为 stub，W2.1 落地；ADR-0005 |
 
 ## 目录与架构（Architecture Patterns）
 
