@@ -8,7 +8,6 @@ import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.async
-import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.sync.Mutex
@@ -24,28 +23,31 @@ import java.util.concurrent.atomic.AtomicBoolean
  * --input-format stream-json` process (or, in tests, any NDJSON-emitting
  * binary) and exposes it as structured coroutine primitives:
  *
- *  - [events]  : `Flow<CCEvent>`    — stdout decoded as NDJSON
- *  - [stderr]  : `Flow<String>`     — raw stderr lines, kept out-of-band
- *  - [exit]    : `Deferred<Int>`    — completes exactly once with the
- *                child's exit code
+ *  - [events]     : `Flow<CCEvent>`    — stdout decoded as NDJSON
+ *  - [stderr]     : `Flow<String>`     — raw stderr lines, kept out-of-band
+ *  - [exit]       : `Deferred<Int>`    — completes exactly once with the
+ *                   child's exit code
  *  - [writeUserMessage] — serialize a single `{"type":"user",...}`
- *                stream-json frame to stdin, `\n` + flush. Protocol spec
- *                forbids writing permission responses through stdin, so
- *                the API accepts a sealed [ClaudeInput] type whose only
- *                concrete variant is [ClaudeInput.UserMessage].
+ *                   stream-json frame to stdin, `\n` + flush. Protocol
+ *                   spec forbids writing permission responses through
+ *                   stdin, so the API accepts a sealed [ClaudeInput]
+ *                   type whose only concrete variant is
+ *                   [ClaudeInput.UserMessage].
  *
  * ### Lifecycle
  *
  * The child process is spawned in the constructor. Callers that want
- * to block for exit await [exit]. [close] is idempotent; after the
- * first call, subsequent [writeUserMessage] calls raise [IOException].
+ * to block for exit await [exit]. [closeStdin] is the polite shutdown
+ * (closes stdin only; lets the child drain). [close] additionally
+ * destroys the child if still alive. Both are idempotent. After either,
+ * [writeUserMessage] raises [IOException].
  *
  * ### Environment hygiene
  *
  * The caller supplies the full environment map; [ProcessBuilder]'s
- * inherited environment is cleared first. This keeps stray
- * `CLAUDE_*` vars from the developer shell from leaking into the
- * child when production relay invokes it.
+ * inherited environment is cleared first. This keeps stray `CLAUDE_*`
+ * vars from the developer shell from leaking into the child when
+ * production relay invokes it.
  *
  * @param command       full argv including binary; typically
  *                      `listOf("claude", "-p", "--output-format", "stream-json",
@@ -53,11 +55,9 @@ import java.util.concurrent.atomic.AtomicBoolean
  * @param workingDir    working directory to pin for the child.
  * @param env           exact environment map to pass; callers must
  *                      include at minimum `PATH` and `HOME`.
- * @param scope         parent scope that owns the lifecycle waiter.
- *                      Callers that don't care just pass a scope tied
- *                      to their server lifetime; the internal scope is
- *                      a child of it with a [SupervisorJob] so
- *                      writer-side failures don't propagate upward.
+ * @param scope         parent scope that owns the `exit` waiter.
+ *                      Defaults to a fresh [SupervisorJob] on
+ *                      [Dispatchers.IO].
  * @param json          protocol Json instance (defaults to
  *                      [ProtocolJson.default]).
  */
@@ -66,7 +66,7 @@ public class ClaudeProcess(
     workingDir: Path,
     env: Map<String, String> = DEFAULT_ENV,
     scope: CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.IO),
-    json: Json = ProtocolJson.default,
+    private val json: Json = ProtocolJson.default,
 ) : AutoCloseable {
     private val process: Process =
         ProcessBuilder(command)
@@ -94,23 +94,10 @@ public class ClaudeProcess(
 
     /** Completes exactly once with the child's exit code. */
     public val exit: Deferred<Int> =
-        scope.async(Dispatchers.IO) {
-            try {
-                process.waitFor()
-            } finally {
-                // Nothing else holds a stake in this waiter; let the
-                // coroutine scope drain naturally.
-            }
-        }
-
-    private val ownedScope: CoroutineScope? =
-        // Only cancel the scope we created ourselves. If a scope was
-        // passed in explicitly, it stays the caller's responsibility.
-        null
+        scope.async(Dispatchers.IO) { process.waitFor() }
 
     private val closed = AtomicBoolean(false)
     private val writeMutex = Mutex()
-    private val encodeJson: Json = json
 
     /**
      * Writes a single stream-json user message to the child's stdin.
@@ -120,7 +107,7 @@ public class ClaudeProcess(
      */
     public suspend fun writeUserMessage(message: ClaudeInput.UserMessage) {
         if (closed.get()) throw IOException("process stdin closed")
-        val payload = encodeJson.encodeToString(ClaudeInput.UserMessage.serializerJson(), message) + "\n"
+        val payload = json.encodeToString(ClaudeInput.UserMessage.serializerJson(), message) + "\n"
         writeMutex.withLock {
             try {
                 process.outputStream.write(payload.toByteArray(StandardCharsets.UTF_8))
@@ -153,7 +140,6 @@ public class ClaudeProcess(
         if (process.isAlive) {
             process.destroy()
         }
-        ownedScope?.cancel()
     }
 
     public companion object {
