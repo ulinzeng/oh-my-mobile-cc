@@ -39,25 +39,31 @@ import java.nio.charset.StandardCharsets
  * These match the invariants declared and tested on
  * `ndjsonLines()` in the `shared` module.
  */
-public fun InputStream.asLineFlow(): Flow<String> {
+public fun InputStream.asLineFlow(): Flow<String> = asChunkedCharFlow().ndjsonLines().flowOn(Dispatchers.IO)
+
+/**
+ * Internal building block: raw UTF-8 chunks as they come off the stream.
+ *
+ * Exposed as `internal` (package-private via default visibility + lib
+ * coordinates) so higher-level operators like `ccEvents()` can plug the
+ * shared `ndjsonLines()` operator in themselves, avoiding the
+ * double-framing trap that would otherwise occur when
+ * `asLineFlow().ccEvents()` is called (ccEvents also invokes
+ * `ndjsonLines()` internally on its upstream).
+ */
+internal fun InputStream.asChunkedCharFlow(): Flow<String> {
     val source = this
-    // Read in moderately-sized chunks — 8 KiB is the default for
-    // BufferedReader and large enough to amortize syscall cost while
-    // still being small enough to surface partial lines promptly in
-    // tests that feed bytes slowly.
     val bufferSize = DEFAULT_READ_BUFFER
-    val chunks: Flow<String> =
-        flow {
-            BufferedReader(InputStreamReader(source, StandardCharsets.UTF_8), bufferSize).use { reader ->
-                val buffer = CharArray(bufferSize)
-                while (true) {
-                    val read = reader.read(buffer)
-                    if (read < 0) break
-                    if (read > 0) emit(String(buffer, 0, read))
-                }
+    return flow {
+        BufferedReader(InputStreamReader(source, StandardCharsets.UTF_8), bufferSize).use { reader ->
+            val buffer = CharArray(bufferSize)
+            while (true) {
+                val read = reader.read(buffer)
+                if (read < 0) break
+                if (read > 0) emit(String(buffer, 0, read))
             }
         }
-    return chunks.ndjsonLines().flowOn(Dispatchers.IO)
+    }
 }
 
 private const val DEFAULT_READ_BUFFER: Int = 8 * 1024
