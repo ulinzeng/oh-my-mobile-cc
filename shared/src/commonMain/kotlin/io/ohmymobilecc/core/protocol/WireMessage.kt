@@ -175,26 +175,6 @@ public object WireMessageSerializer : KSerializer<WireMessage> {
                 WireMessage.HelloErr(
                     reason = requireString(obj, "reason"),
                 )
-            "hello" ->
-                WireMessage.ClientHello(
-                    deviceId = requireString(obj, "deviceId"),
-                    sessionId = requireString(obj, "sessionId"),
-                    timestampMs = obj["timestampMs"]?.jsonPrimitive?.long
-                        ?: error("hello missing timestampMs"),
-                    nonce = requireString(obj, "nonce"),
-                    sig = requireString(obj, "sig"),
-                )
-            "hello.ok" ->
-                WireMessage.HelloOk(
-                    serverTimeMs = obj["serverTimeMs"]?.jsonPrimitive?.long
-                        ?: error("hello.ok missing serverTimeMs"),
-                    protocolVersion = obj["protocolVersion"]?.jsonPrimitive?.int
-                        ?: error("hello.ok missing protocolVersion"),
-                )
-            "hello.err" ->
-                WireMessage.HelloErr(
-                    reason = requireString(obj, "reason"),
-                )
             "terminal.output" ->
                 WireMessage.TerminalOutput(
                     sessionId = requireString(obj, "sessionId"),
@@ -248,26 +228,6 @@ public object WireMessageSerializer : KSerializer<WireMessage> {
                 buildJsonObject {
                     put("op", JsonPrimitive("approval.expired"))
                     put("approvalId", JsonPrimitive(value.approvalId))
-                    put("reason", JsonPrimitive(value.reason))
-                }
-            is WireMessage.ClientHello ->
-                buildJsonObject {
-                    put("op", JsonPrimitive("hello"))
-                    put("deviceId", JsonPrimitive(value.deviceId))
-                    put("sessionId", JsonPrimitive(value.sessionId))
-                    put("timestampMs", JsonPrimitive(value.timestampMs))
-                    put("nonce", JsonPrimitive(value.nonce))
-                    put("sig", JsonPrimitive(value.sig))
-                }
-            is WireMessage.HelloOk ->
-                buildJsonObject {
-                    put("op", JsonPrimitive("hello.ok"))
-                    put("serverTimeMs", JsonPrimitive(value.serverTimeMs))
-                    put("protocolVersion", JsonPrimitive(value.protocolVersion))
-                }
-            is WireMessage.HelloErr ->
-                buildJsonObject {
-                    put("op", JsonPrimitive("hello.err"))
                     put("reason", JsonPrimitive(value.reason))
                 }
             is WireMessage.ClientHello ->

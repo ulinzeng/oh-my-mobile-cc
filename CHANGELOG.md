@@ -1,5 +1,27 @@
 # Changelog
 
+## [Unreleased]
+
+### W1.5 — Pairing + Relay Transport + Operator CLI
+
+- feat(w1.5): [green] RelayServer + SingleConnectionRegistry
+  - `/ws` route, first-frame ClientHello verifier, HelloOk/HelloErr paths
+  - per-sessionId token-based slot to enforce single-active-WS rule
+  - outbound SharedFlow pump + inbound onInbound callback
+- feat(w1.5): [green] shared TransportPort + KtorRelayClient jvm actual
+  - commonMain `TransportPort` / `TransportSession` / `TransportEndpoint` /
+    `DeviceIdentity` / `RelayError` (Rejected / ProtocolViolation / Network)
+  - jvmMain CIO-backed `KtorRelayClient` drives Ed25519-signed handshake
+- feat(w1.5): [green] relay-cli pair/revoke/serve + CLI shared state
+  - `pair`: 6-digit code + 5-min timeout
+  - `revoke <deviceId>`: marks registry revoke, does NOT force-close live WS
+  - `serve`: embeddedServer(Netty) on `--port`/`RELAY_PORT`/48964
+  - `RelayProcessState`: per-JVM registry + nonce cache + approval bridge
+- chore(w1.5): enforce koverVerify thresholds for pairing/server/cli
+  - custom per-package gate: pairing ≥85%, server ≥85%, cli ≥80%
+- refactor(protocol): dedup accidental duplicate `hello`/`hello.ok`/`hello.err`
+  branches in WireMessage serializer (compiler warnings → 0)
+
 
 ## 2026-04-22T16:14:36+0800
 
