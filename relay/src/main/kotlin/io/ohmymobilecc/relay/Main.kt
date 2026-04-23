@@ -1,9 +1,13 @@
 package io.ohmymobilecc.relay
 
+import io.ohmymobilecc.relay.cli.RelayCli
+import kotlin.system.exitProcess
+
 /**
- * Relay entry point placeholder. Real relay server, ClaudeProcess, ApprovalBridge land in W1.3+.
- * Running `./gradlew :relay:run` today prints the marker and exits 0.
+ * Entry point for the relay shadow jar. Delegates to [RelayCli] which
+ * dispatches based on argv subcommand (`approval-bridge` today; the
+ * main Ktor server lands in W1.5).
  */
 fun main(args: Array<String>) {
-    println("oh-my-mobile-cc relay — W0 placeholder. args=${args.joinToString()}")
+    exitProcess(RelayCli.dispatch(args))
 }
