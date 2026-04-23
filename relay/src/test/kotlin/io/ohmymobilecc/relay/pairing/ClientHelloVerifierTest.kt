@@ -53,6 +53,20 @@ class ClientHelloVerifierTest {
         assertIs<VerifyResult.Err>(verifier.verify(hello)).also { assertEquals("skew", it.reason) }
     }
 
+    // --- boundary pins (Open-design-decisions appendix §1) -------------------
+    // `abs(now - ts) > 60_000` → accept at exactly ±60_000ms. If a later
+    // refactor flips `>` to `>=` these two tests will turn red.
+
+    @Test fun `positive skew at exactly 60s accepted`() {
+        val hello = signedHello(tsMs = clock.nowMs() + 60_000L)
+        assertIs<VerifyResult.Ok>(verifier.verify(hello))
+    }
+
+    @Test fun `negative skew at exactly 60s accepted`() {
+        val hello = signedHello(tsMs = clock.nowMs() - 60_000L)
+        assertIs<VerifyResult.Ok>(verifier.verify(hello))
+    }
+
     @Test fun `replayed nonce rejected`() {
         val hello = signedHello()
         verifier.verify(hello)
