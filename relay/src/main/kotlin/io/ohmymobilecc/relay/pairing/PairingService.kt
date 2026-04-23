@@ -54,4 +54,10 @@ public class PairingService(
         // registry's `revoke` is idempotent via computeIfPresent.
         registry.revoke(deviceId, clock.nowMs())
     }
+
+    /**
+     * `true` iff [digits] is currently awaiting redeem. Used by
+     * `relay-cli pair` to poll for redemption without consuming the code.
+     */
+    public fun peekIssued(digits: String): Boolean = issued.containsKey(digits)
 }

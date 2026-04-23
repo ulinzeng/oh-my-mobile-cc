@@ -70,4 +70,7 @@ public class InMemoryPubkeyRegistry : PubkeyRegistry {
     ) {
         map.computeIfPresent(deviceId) { _, v -> v.copy(revokedAtMs = atMs) }
     }
+
+    /** `true` iff at least one device is currently registered. Used by the `pair` CLI poll loop. */
+    public fun anyRegistered(): Boolean = map.isNotEmpty()
 }
