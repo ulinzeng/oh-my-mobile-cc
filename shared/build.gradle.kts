@@ -72,6 +72,12 @@ kotlin {
             implementation(libs.bouncycastle.bcprov)
         }
 
+        jvmTest.dependencies {
+            implementation(libs.ktor.server.core)
+            implementation(libs.ktor.server.netty)
+            implementation(libs.ktor.server.websockets)
+        }
+
         iosMain.dependencies {
             implementation(libs.ktor.client.darwin)
             implementation(libs.sqldelight.native.driver)
