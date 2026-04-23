@@ -134,12 +134,22 @@ public class ClaudeProcess(
     }
 
     /**
+     * Polite shutdown: closes only the child's stdin so it sees EOF and
+     * can drain remaining output before exiting naturally. Returns
+     * without destroying the process. Future writes raise [IOException].
+     * Idempotent.
+     */
+    public fun closeStdin() {
+        if (!closed.compareAndSet(false, true)) return
+        runCatching { process.outputStream.close() }
+    }
+
+    /**
      * Idempotent close. Closes stdin, then destroys the child if still
      * alive. Safe to call more than once.
      */
     override fun close() {
-        if (!closed.compareAndSet(false, true)) return
-        runCatching { process.outputStream.close() }
+        closeStdin()
         if (process.isAlive) {
             process.destroy()
         }
