@@ -86,7 +86,9 @@ class PairingServiceTest {
 
 // Test doubles scoped to this package.
 
-internal class FakeClock(startMs: Long) : ClockSeam {
+internal class FakeClock(
+    startMs: Long,
+) : ClockSeam {
     private var cur: Long = startMs
 
     override fun nowMs(): Long = cur
@@ -96,9 +98,10 @@ internal class FakeClock(startMs: Long) : ClockSeam {
     }
 }
 
-internal class FakeRandom(private val pattern: ByteArray) : RandomSource {
+internal class FakeRandom(
+    private val pattern: ByteArray,
+) : RandomSource {
     private var i = 0
 
-    override fun nextBytes(size: Int): ByteArray =
-        ByteArray(size) { pattern[(i++) % pattern.size] }
+    override fun nextBytes(size: Int): ByteArray = ByteArray(size) { pattern[(i++) % pattern.size] }
 }
