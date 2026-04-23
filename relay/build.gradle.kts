@@ -100,7 +100,7 @@ val koverPerPackageVerify by
                 }
                 val total = missed + covered
                 if (total == 0) continue
-                val pct = covered * HUNDRED / total
+                val pct = covered * hundred / total
                 if (pct < threshold) {
                     failures += "$name: $pct%% < threshold $threshold%%"
                 }
@@ -112,7 +112,7 @@ val koverPerPackageVerify by
         }
     }
 
-val HUNDRED: Double = 100.0
+val hundred: Double = 100.0
 
 // Chain: koverVerify now also runs the per-package gate.
 tasks.named("koverVerify") { dependsOn(koverPerPackageVerify) }
