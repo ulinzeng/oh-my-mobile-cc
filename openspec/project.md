@@ -141,3 +141,24 @@ ui/**            豁免
 | CHANGELOG.md | Conventional Commits（英文），章节双语可选 |
 | 代码注释 / KDoc | English |
 | 用户可见错误信息 | 英文（后续支持 i18n） |
+
+## 工作流编排（Workflow Orchestration）
+
+本项目同时使用 **OpenSpec**（产品规范真相）、**superpowers skills**（session 编排与纪律）、**Everything Claude Code (ECC)**（语言/领域 skill + specialist agent）三套工具。
+
+**分工单一指导方针**：
+- **OpenSpec 是 merge-ready 真相源** — `changes/<id>/tasks.md` 的 binary checkbox 是进度唯一真相，`specs/<cap>/spec.md` 是规范唯一真相。
+- **plan.md (`.claude/PRPs/plans/<id>.plan.md`) 是 session 内 scratch** — ≤ 300 行，只写 "Mirrors / File Structure / Risk / NOT-doing / Pointer"；**不再**有 task checklist、**不**重写 spec 内容、**不**承担跨 session handoff 职责。
+- **跨 session 交接** — 靠 `git log` + `openspec show <id>` + `docs/adr/`，**不**靠 plan.md 尾部的 Session Handoff 附录。
+
+**四阶段编排**：
+
+1. **Phase 1 — 产品入口**：`openspec:proposal` 主导；需求模糊时前插 `superpowers:brainstorming`；产物 = proposal + design + tasks + spec deltas；过 `openspec validate --strict` + approval gate。**禁止此阶段写代码。**
+2. **Phase 2 — Session 编排**：`superpowers:subagent-driven-development` 主导；lead 读 `openspec show --json` + plan.md 的 Mirrors/File Structure 段，按依赖切 slice，每 slice 跑 3 阶段 subagent 链（Implementer → Spec reviewer → Quality reviewer）。
+3. **Phase 3 — 并行加速**（可选）：slice 间无代码依赖时，用 `superpowers:using-git-worktrees` + `superpowers:dispatching-parallel-agents` 并行。
+4. **Phase 4 — 合流归档**：`git merge --no-ff` → `openspec archive <id> --yes` → 删分支 → 补 ADR（如有遗留技术决策）。
+
+**战术手册** 见 `.claude/rules/orchestration.md`（触发词、subagent 选择、每次 session 起手约定、禁忌清单）。
+
+**ECC skill/agent 精简清单** 在 `.claude/scripts/prune-ecc.sh`。ECC 升级后重跑该脚本。
+
