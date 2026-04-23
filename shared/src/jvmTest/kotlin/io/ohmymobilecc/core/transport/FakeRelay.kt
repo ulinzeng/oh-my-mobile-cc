@@ -2,14 +2,12 @@ package io.ohmymobilecc.core.transport
 
 import io.ktor.client.HttpClient
 import io.ktor.client.engine.cio.CIO
-import io.ktor.client.plugins.websocket.WebSockets as ClientWebSockets
 import io.ktor.server.application.install
 import io.ktor.server.engine.EmbeddedServer
 import io.ktor.server.engine.embeddedServer
 import io.ktor.server.netty.Netty
 import io.ktor.server.netty.NettyApplicationEngine
 import io.ktor.server.routing.routing
-import io.ktor.server.websocket.WebSockets as ServerWebSockets
 import io.ktor.server.websocket.webSocket
 import io.ktor.websocket.CloseReason
 import io.ktor.websocket.Frame
@@ -17,12 +15,15 @@ import io.ktor.websocket.close
 import io.ktor.websocket.readText
 import io.ohmymobilecc.core.protocol.ProtocolJson
 import io.ohmymobilecc.core.protocol.WireMessage
+import kotlinx.coroutines.channels.ClosedReceiveChannelException
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.decodeFromString
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.JsonObject
 import java.io.Closeable
+import io.ktor.client.plugins.websocket.WebSockets as ClientWebSockets
+import io.ktor.server.websocket.WebSockets as ServerWebSockets
 
 /**
  * Behavior selector for [startFakeRelay]. Each mode scripts a distinct
@@ -76,7 +77,13 @@ internal fun startFakeRelay(mode: FakeRelayMode): FakeRelay {
             }
         }
     engine.start(wait = false)
-    val port = runBlocking { engine.engine.resolvedConnectors().first().port }
+    val port =
+        runBlocking {
+            engine.engine
+                .resolvedConnectors()
+                .first()
+                .port
+        }
     return FakeRelay(engine, port)
 }
 
@@ -109,9 +116,14 @@ private suspend fun handleHappy(
             ),
         ),
     )
-    // Hold the socket open until the client closes it.
-    for (frame in session.incoming) {
-        if (frame is Frame.Close) break
+    // Hold the socket open until the client closes it. Ktor surfaces the
+    // remote close via ClosedReceiveChannelException on the next receive().
+    try {
+        for (frame in session.incoming) {
+            if (frame is Frame.Close) break
+        }
+    } catch (_: ClosedReceiveChannelException) {
+        // remote closed — normal termination
     }
 }
 

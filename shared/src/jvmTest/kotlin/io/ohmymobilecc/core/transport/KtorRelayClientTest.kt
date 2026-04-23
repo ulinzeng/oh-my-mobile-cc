@@ -4,7 +4,7 @@ import io.ohmymobilecc.core.crypto.Ed25519
 import io.ohmymobilecc.core.pairing.DeviceId
 import io.ohmymobilecc.core.protocol.WireMessage
 import kotlinx.coroutines.flow.first
-import kotlinx.coroutines.test.runTest
+import kotlinx.coroutines.runBlocking
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertIs
@@ -24,8 +24,8 @@ import kotlin.test.fail
  */
 class KtorRelayClientTest {
     @Test
-    fun `happy path returns TransportSession and streams pushed frames`() =
-        runTest {
+    fun `happy path returns TransportSession and streams pushed frames`(): Unit =
+        runBlocking {
             startFakeRelay(FakeRelayMode.HAPPY).use { relay ->
                 val client = newClient()
                 try {
@@ -46,8 +46,8 @@ class KtorRelayClientTest {
         }
 
     @Test
-    fun `relay HelloErr revoked maps to RelayError Rejected`() =
-        runTest {
+    fun `relay HelloErr revoked maps to RelayError Rejected`(): Unit =
+        runBlocking {
             startFakeRelay(FakeRelayMode.REVOKED).use { relay ->
                 val client = newClient()
                 try {
@@ -66,8 +66,8 @@ class KtorRelayClientTest {
         }
 
     @Test
-    fun `relay frame before HelloOk is ProtocolViolation`() =
-        runTest {
+    fun `relay frame before HelloOk is ProtocolViolation`(): Unit =
+        runBlocking {
             startFakeRelay(FakeRelayMode.PROTOCOL_VIOLATION).use { relay ->
                 val client = newClient()
                 try {
