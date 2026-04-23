@@ -143,4 +143,68 @@ class WireMessageTest {
         // encodeDefaults=false + null customInput → field absent
         assertEquals(false, encoded.contains("customInput"))
     }
+
+    // ---- round-trip for remaining variants (coverage for encode branches) ----
+
+    @Test
+    fun `round-trips ChatMessage`() {
+        val original = WireMessage.ChatMessage(sessionId = "S1", text = "hello")
+        val encoded = json.encodeToString(WireMessage.serializer(), original)
+        val decoded = json.decodeFromString(WireMessage.serializer(), encoded)
+        assertIs<WireMessage.ChatMessage>(decoded)
+        assertEquals(original.sessionId, decoded.sessionId)
+        assertEquals(original.text, decoded.text)
+    }
+
+    @Test
+    fun `round-trips ApprovalResponded with customInput`() {
+        val original =
+            WireMessage.ApprovalResponded(
+                approvalId = "A1",
+                decision = Decision.CUSTOMIZE,
+                customInput = buildJsonObject { put("command", JsonPrimitive("ls /tmp")) },
+            )
+        val encoded = json.encodeToString(WireMessage.serializer(), original)
+        val decoded = json.decodeFromString(WireMessage.serializer(), encoded)
+        assertIs<WireMessage.ApprovalResponded>(decoded)
+        assertEquals(original.approvalId, decoded.approvalId)
+        assertEquals(original.decision, decoded.decision)
+        assertEquals(
+            "ls /tmp",
+            decoded.customInput
+                ?.get("command")
+                ?.jsonPrimitive
+                ?.content,
+        )
+    }
+
+    @Test
+    fun `round-trips ApprovalExpired`() {
+        val original = WireMessage.ApprovalExpired(approvalId = "A1", reason = "timeout")
+        val encoded = json.encodeToString(WireMessage.serializer(), original)
+        val decoded = json.decodeFromString(WireMessage.serializer(), encoded)
+        assertIs<WireMessage.ApprovalExpired>(decoded)
+        assertEquals(original.approvalId, decoded.approvalId)
+        assertEquals(original.reason, decoded.reason)
+    }
+
+    @Test
+    fun `round-trips TerminalOutput`() {
+        val original = WireMessage.TerminalOutput(sessionId = "S1", chunkBase64 = "aGVsbG8=")
+        val encoded = json.encodeToString(WireMessage.serializer(), original)
+        val decoded = json.decodeFromString(WireMessage.serializer(), encoded)
+        assertIs<WireMessage.TerminalOutput>(decoded)
+        assertEquals(original.sessionId, decoded.sessionId)
+        assertEquals(original.chunkBase64, decoded.chunkBase64)
+    }
+
+    @Test
+    fun `round-trips FileListRequest`() {
+        val original = WireMessage.FileListRequest(sessionId = "S1", path = "/tmp")
+        val encoded = json.encodeToString(WireMessage.serializer(), original)
+        val decoded = json.decodeFromString(WireMessage.serializer(), encoded)
+        assertIs<WireMessage.FileListRequest>(decoded)
+        assertEquals(original.sessionId, decoded.sessionId)
+        assertEquals(original.path, decoded.path)
+    }
 }
