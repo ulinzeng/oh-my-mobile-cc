@@ -1,10 +1,8 @@
 package io.ohmymobilecc.relay.server
 
-import io.ktor.client.plugins.websocket.WebSockets as ClientWS
 import io.ktor.client.plugins.websocket.webSocket
 import io.ktor.server.application.install
 import io.ktor.server.testing.testApplication
-import io.ktor.server.websocket.WebSockets as ServerWS
 import io.ktor.websocket.Frame
 import io.ktor.websocket.readText
 import io.ohmymobilecc.core.crypto.Base64Url
@@ -25,6 +23,8 @@ import kotlinx.serialization.json.JsonObject
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertIs
+import io.ktor.client.plugins.websocket.WebSockets as ClientWS
+import io.ktor.server.websocket.WebSockets as ServerWS
 
 class RelayServerTest {
     private val clock =
