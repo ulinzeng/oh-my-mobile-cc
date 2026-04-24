@@ -1,0 +1,3 @@
+test(x): [red] case a
+test(x): [red] case b
+test(x): [red] case c
