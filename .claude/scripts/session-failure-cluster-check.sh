@@ -47,6 +47,8 @@ in the current session window ($range). This often signals a stuck TDD loop.
 Consider filing a bad case: docs/badcases/$(date +%Y-%m-%d)-<slug>.md
 and registering it in docs/badcases/INDEX.md.
 HINT
+  # Also persist the cluster as an auto-badcase (idempotent; skips if exists).
+  "$(dirname "$0")/failure-to-badcase.sh" || true
 fi
 
 exit 0
