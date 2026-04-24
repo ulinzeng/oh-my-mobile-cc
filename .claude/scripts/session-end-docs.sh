@@ -15,7 +15,11 @@ cd "$(git rev-parse --show-toplevel 2>/dev/null || echo .)" || exit 0
 ROOT="$(pwd)"
 SCRIPTS_DIR="$ROOT/.claude/scripts"
 PENDING="$ROOT/.claude/pending-docs"
-mkdir -p "$PENDING"
+# Only materialize the pending dir when the mode is explicitly requested.
+# (Previously unconditional — created a ghost path even after cleanup.)
+if [ "${PENDING_DOCS_ONLY:-0}" = "1" ]; then
+  mkdir -p "$PENDING"
+fi
 
 TS="$(date +%Y-%m-%dT%H:%M:%S%z)"
 log() { echo "[session-end-docs $TS] $*"; }
@@ -83,10 +87,28 @@ step_append_changelog() {
   log "appended $(printf '%s\n' "$entries" | wc -l | tr -d ' ') entry lines -> $target"
 }
 
+step_archive_index() {
+  local gen="$SCRIPTS_DIR/gen-archive-index.sh"
+  if [ ! -x "$gen" ]; then
+    log "gen-archive-index.sh missing or not executable — skipping"
+    return 0
+  fi
+  log "regenerating openspec archive INDEX"
+  "$gen" || log "gen-archive-index failed (non-blocking)"
+}
+
+step_failure_cluster_hint() {
+  local chk="$SCRIPTS_DIR/session-failure-cluster-check.sh"
+  if [ ! -x "$chk" ]; then return 0; fi
+  "$chk" || true
+}
+
 log "start"
 step_openspec_validate
 step_list_archive_candidates
 step_gen_codemaps
 step_append_changelog
+step_archive_index
+step_failure_cluster_hint
 log "done"
 exit 0

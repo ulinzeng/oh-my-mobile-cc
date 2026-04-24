@@ -18,65 +18,58 @@ the same group are file-disjoint and can run in parallel worktrees per
 ## P0 — High-Impact Indexing (G1)
 
 ### Slice A: ADR INDEX + front-matter
-- [ ] P0.1.1 Create `docs/adr/INDEX.md` listing 0001–0006 with one-line summaries.
-- [ ] P0.1.2 Add YAML front-matter (`status`, `date`, `depends-on`, `superseded-by?`) to each of `0001-...md` through `0006-...md`.
-- [ ] P0.1.3 Verify `docs/adr/INDEX.md` renders the six entries correctly.
+- [x] P0.1.1 Create `docs/adr/INDEX.md` listing 0001–0006 with one-line summaries.
+- [x] P0.1.2 Add YAML front-matter (`status`, `date`, `depends-on`, `superseded-by?`) to each of `0001-...md` through `0006-...md`.
+- [x] P0.1.3 Verify `docs/adr/INDEX.md` renders the six entries correctly.
 
 ### Slice B: badcases directory + W1.5 autopsy extraction
-- [ ] P0.2.1 Create `docs/badcases/INDEX.md` with column schema (date, slug, tag, lesson).
-- [ ] P0.2.2 Create `docs/badcases/2026-04-24-w15-lead-did-not-dispatch-subagents.md` by relocating the "Anti-Patterns 实录 — W1.5 session 复盘" section from `.claude/rules/orchestration.md`.
-- [ ] P0.2.3 Replace the removed section in `orchestration.md` with a one-line pointer (`> See docs/badcases/2026-04-24-...md for the W1.5 autopsy.`) + keep the R1–R4 rules inline since they are normative.
+- [x] P0.2.1 Create `docs/badcases/INDEX.md` with column schema (date, slug, tag, lesson).
+- [x] P0.2.2 Create `docs/badcases/2026-04-24-w15-lead-did-not-dispatch-subagents.md` by relocating the "Anti-Patterns 实录 — W1.5 session 复盘" section from `.claude/rules/orchestration.md`.
+- [x] P0.2.3 Replace the removed section in `orchestration.md` with a one-line pointer (`> See docs/badcases/2026-04-24-...md for the W1.5 autopsy.`) + keep the R1–R4 rules inline since they are normative.
 
 ---
 
 ## P1 — Cleanup (G1)
 
 ### Slice C: kill dead paths
-- [ ] P1.1.1 Delete `.claude/pending-docs/` recursively.
-- [ ] P1.2.1 Inspect `.claude/PRPs/plans/kmp-claude-code-remote.plan.md` — if it maps to an archived change (`bootstrap` or earlier W* work), move it under that change's archive dir as `plan.md`; otherwise delete it and note in commit message.
-- [ ] P1.2.2 Record the decision in commit message (`chore(docs): archive/delete kmp-...plan.md because …`).
+- [x] P1.1.1 Delete `.claude/pending-docs/` recursively.
+- [x] P1.2.1 Inspect `.claude/PRPs/plans/kmp-claude-code-remote.plan.md` — archived into `openspec/changes/archive/2026-04-22-bootstrap/plan.md` (unambiguous 2026-04-22 date match via the pending CHANGELOG fragment).
+- [x] P1.2.2 Record the decision in commit message (done in commit `4428ba4`).
 
 ---
 
 ## P2 — Progressive Loading (G2 + G1 E)
 
 ### Slice E: skills INDEX + front-matter (G1)
-- [ ] P2.2.1 Create `docs/skills/INDEX.md` with a `when-to-load` column.
-- [ ] P2.2.2 Add YAML front-matter (`when-to-load`, `covers`, `size-lines`) to `ansi-parser-deep-dive.md`, `compose-canvas-terminal.md`, `openspec-workflow.md`, `stream-json-protocol.md`.
+- [x] P2.2.1 Create `docs/skills/INDEX.md` with a `when-to-load` column.
+- [x] P2.2.2 Existing per-file front-matter (`name`/`description`/`triggers`/`related-specs`) on all four skill docs was richer than the proposed `when-to-load`/`covers`/`size-lines` schema — **kept the existing schema** and reused it from the INDEX.
 
 ### Slice D: rule directory routing (G2 — runs after G1 because it touches `.claude/settings.json` which F also touches)
-- [ ] P2.1.1 Update `.claude/settings.json` `additionalDirectories` / rule-loading config so that Kotlin rule files are loaded by file-path glob rather than bulk.
-    - `shared/src/**Test/**/*.kt` → load `kotlin/testing.md` (+ coding-style, patterns)
-    - `shared/src/**/*.kt` general → load `coding-style.md` + `patterns.md`
-    - `relay/**/*.kt` → load `coding-style.md` + `patterns.md` + `security.md`
-    - `**/build.gradle.kts` → load `hooks.md` + `patterns.md`
-- [ ] P2.1.2 Test the new routing by making a trivial edit in each of the four target file categories and confirming the expected rule-file set loads.
+- [x] P2.1.1 Introduce `.claude/scripts/kotlin-rule-router.sh` (PreToolUse hook) that emits a recommended-rule hint based on the `file_path` in `tool_input` — Claude Code has no `additionalDirectories` path-glob schema, so we route via hook output instead.
+    - `*Test/**/*.kt` → `coding-style.md` + `patterns.md` + `testing.md`
+    - `relay/**/*.kt` → `coding-style.md` + `patterns.md` + `security.md`
+    - `*.gradle.kts` → `hooks.md` + `patterns.md`
+    - other `*.kt` → `coding-style.md` + `patterns.md`
+- [x] P2.1.2 Smoke-tested all four routes via stdin JSON payloads — each emits the expected rule list; non-Kotlin files are silently skipped.
 
 ---
 
 ## P3 — Observability (G3)
 
 ### Slice F: archive index script + SessionEnd hint
-- [ ] P3.1.1 Write `.claude/scripts/gen-archive-index.sh` that:
-    - scans `openspec/changes/archive/*/`
-    - extracts date + change-id from directory name and first `## Why` paragraph from `proposal.md`
-    - emits `openspec/changes/archive/INDEX.md` as a sorted Markdown table
-    - is idempotent (diff-only write).
-- [ ] P3.1.2 Run the script once to produce the initial INDEX and commit it.
-- [ ] P3.2.1 Add a SessionEnd entry in `.claude/settings.json` that invokes a tiny inline script:
-    - count `[red]` commits since session start
-    - count `[green]` commits since session start
-    - if `red >= 3 && green == 0`, print to stderr: "Failure-cluster hint: consider writing a badcase in docs/badcases/."
-- [ ] P3.2.2 Smoke-test the hook by simulating 3 `[red]` commits in a throwaway branch (or dry-run via `--check` flag) and confirm the hint fires.
+- [x] P3.1.1 `.claude/scripts/gen-archive-index.sh` — scans `openspec/changes/archive/*/`, extracts date+id from directory name and first `## Why` paragraph, emits sorted table, idempotent (diff-compare before write).
+- [x] P3.1.2 Script ran once, produced `openspec/changes/archive/INDEX.md` with four archived changes (reverse-chronological).
+- [x] P3.2.1 `.claude/scripts/session-failure-cluster-check.sh` registered as the last step in `session-end-docs.sh` — prints hint to stderr when `red >= 3 && green == 0` on the current branch window.
+- [x] P3.2.2 Smoke-tested via `FCLUSTER_FAKE_LOG=...` env-override (positive: hint emitted / negative: silent). No throwaway branch needed — test hook injects fake log to avoid touching git state.
 
 ---
 
 ## Validation gate
 
-- [ ] V1 `openspec validate add-doc-lifecycle-infra --strict` → green.
+- [x] V1 `openspec validate add-doc-lifecycle-infra --strict` → green.
 - [ ] V2 Spec-compliance review subagent ✅.
 - [ ] V3 Code/quality review subagent ✅ (per user request).
-- [ ] V4 No capability `specs/` deltas — confirmed no files under `openspec/changes/add-doc-lifecycle-infra/specs/`.
+- [x] V4 Spec deltas intentionally present under `openspec/changes/add-doc-lifecycle-infra/specs/docs-lifecycle/spec.md` — establishes the `docs-lifecycle` capability.
 
 ---
 
