@@ -10,8 +10,6 @@
 set -euo pipefail
 export LC_ALL=en_US.UTF-8
 export LANG=en_US.UTF-8
-export LC_ALL=en_US.UTF-8
-export LANG=en_US.UTF-8
 
 cd "$(git rev-parse --show-toplevel 2>/dev/null || echo .)"
 ROOT="$(pwd)"
