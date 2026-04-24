@@ -1,3 +1,9 @@
+---
+status: accepted
+date: 2026-04-23
+depends-on: []
+---
+
 # ADR-0005: Ed25519 via platform crypto (BouncyCastle on JVM/Android, stub on iOS)
 
 - **Status**: Accepted

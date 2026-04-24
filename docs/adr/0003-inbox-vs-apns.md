@@ -1,3 +1,9 @@
+---
+status: accepted
+date: 2026-04-22
+depends-on: [0002]
+---
+
 # ADR-0003 应用内 Inbox 审批而非 APNs 推送
 
 - **状态**：Accepted

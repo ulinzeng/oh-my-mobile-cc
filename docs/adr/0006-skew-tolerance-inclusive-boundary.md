@@ -1,3 +1,9 @@
+---
+status: accepted
+date: 2026-04-24
+depends-on: []
+---
+
 # ADR-0006: Skew 边界 `abs == 60_000ms` 接受（inclusive tolerance）
 
 - **Status**: Accepted

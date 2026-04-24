@@ -1,3 +1,9 @@
+---
+status: accepted
+date: 2026-04-22
+depends-on: [0003]
+---
+
 # ADR-0004 审批桥基于 `PreToolUse` hook 而非 stdout `permission_request` 流事件
 
 - **状态**：Accepted（推翻 Plan v2 中 `permission_request` 流事件假设）
