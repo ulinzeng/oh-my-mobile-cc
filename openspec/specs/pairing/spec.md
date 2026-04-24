@@ -17,9 +17,19 @@
 ### Requirement: Ed25519 会话签名
 配对成功后，移动客户端 SHALL 生成 Ed25519 keypair，公钥交付 relay；后续每次 WS 连接的 ClientHello 必须附带以私钥签名的 `(session_id, timestamp_ms, nonce)`。Relay SHALL 拒绝签名校验失败或 timestamp 偏移超过 `±60s` 的连接。
 
+`ClientHello` SHALL 包含可选字段 `lastEventSeq: Long?`，表示客户端上次收到的最后一个事件的 seq。该字段 SHALL **不参与** Ed25519 签名的 canonical input（签名输入保持 `sessionId|timestampMs|nonce` 不变）。`lastEventSeq` 为 null 时 JSON 编码中 SHALL 不出现该字段（向后兼容）。
+
 #### Scenario: 时间偏移超限
 - **WHEN** 客户端 ClientHello 的 timestamp 与 relay 系统时间差 90s
 - **THEN** relay 关闭连接，状态码 `1008 policy violation`
+
+#### Scenario: 重连带 lastEventSeq
+- **WHEN** 客户端发送 `ClientHello(lastEventSeq=42, ...)`，签名仅覆盖 `sessionId|timestampMs|nonce`
+- **THEN** relay 正常验签通过（lastEventSeq 不影响签名校验），握手成功后根据 lastEventSeq 回放事件
+
+#### Scenario: 首次连接不带 lastEventSeq
+- **WHEN** 客户端首次连接，ClientHello 不包含 `lastEventSeq` 字段
+- **THEN** relay 解码 `lastEventSeq` 为 null，握手正常通过，不触发回放
 
 ### Requirement: Replay 防护
 系统 SHALL 缓存最近 `10 minutes` 内所有已接受 ClientHello 的 nonce；重复 nonce 的连接尝试 SHALL 被拒绝。
@@ -59,6 +69,8 @@
 
 扩展新的 reason 值 SHALL 通过新的 OpenSpec change 反映到本 requirement。
 
+`HelloOk` SHALL 包含 `oldestSeq: Long`（EventLog 中最老事件的 seq，0=无事件）和 `latestSeq: Long`（最新事件的 seq，0=无事件），使客户端可判断回放是否存在缺口（`lastEventSeq < oldestSeq`）。
+
 #### Scenario: 签名校验失败
 - **WHEN** 客户端发 ClientHello, sig 字段对应的 Ed25519 签名对 canonical 输入不合法
 - **THEN** relay SHALL 回 `HelloErr(reason="sig")` 并以 close code 1008 关闭 WS
@@ -66,6 +78,10 @@
 #### Scenario: 扩展未经 proposal
 - **WHEN** 任意 relay 代码路径尝试构造 `HelloErr(reason = "some_new_value")`
 - **THEN** 代码审查 SHALL 拒绝该变更,直到对应 OpenSpec change 审批通过
+
+#### Scenario: HelloOk 带 seq 范围
+- **WHEN** relay 握手成功，EventLog 包含 seq 1~100
+- **THEN** HelloOk 响应 SHALL 包含 `oldestSeq=1, latestSeq=100`
 
 ### Requirement: 撤销不立即踢已握手连接(W1.5 已知债)
 
