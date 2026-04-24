@@ -37,7 +37,8 @@ KEEP_SKILLS=(
   architecture-decision-records autonomous-loops backend-patterns
   blueprint code-tour codebase-onboarding coding-standards
   compose-multiplatform-patterns configure-ecc context-budget
-  deep-research documentation-lookup e2e-testing exa-search
+  continuous-learning-v2 deep-research documentation-lookup
+  e2e-testing exa-search
   git-workflow hexagonal-architecture hookify-rules
   kotlin-coroutines-flows kotlin-ktor-patterns kotlin-patterns
   kotlin-testing mcp-server-patterns repo-scan security-review
