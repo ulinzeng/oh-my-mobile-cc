@@ -131,9 +131,10 @@
 
 1. 读 `git log --oneline -10`(确认在哪个 branch、最新 commit)
 2. `openspec list`(看有哪些 active change)
-3. 如果已有 active branch / change,不去读 plan.md 全文 — 只看 Mirrors+File Structure 段
-4. **不要** Read 任何 >500 行的文件,除非是 diff 的目标文件
-5. 跑 `/context` 或等价,确认起手 context 占用 ≤ 30%
+3. **R5 gate**:用户需求涉及新 capability / 架构变更 / 跨 spec 吗?→ 是 → **必须先走 `openspec:proposal`**,brainstorming 只能做子步骤
+4. 如果已有 active branch / change,不去读 plan.md 全文 — 只看 Mirrors+File Structure 段
+5. **不要** Read 任何 >500 行的文件,除非是 diff 的目标文件
+6. 跑 `/context` 或等价,确认起手 context 占用 ≤ 30%
 
 **session 内健康指标**:
 - Context 用量 < 60%:正常
@@ -151,12 +152,15 @@
 5. **❌ 跳过 `openspec validate --strict`** — Phase 1 / Phase 4 必跑
 6. **❌ RED skip** — 任何生产代码变更先红后绿,commit 带 `[red]` / `[green]` / `[refactor]` tag
 7. **❌ 在 plan.md 里 paraphrase spec** — spec 是规范真相,plan 只写 HOW
+8. **❌ 用 brainstorming / writing-plans 绕开 OpenSpec** — 新 capability / 架构变更 / 跨 spec 的需求 **必须** 先走 `openspec:proposal`。`superpowers:brainstorming` 只能作为 Phase 1 步骤 2 的**需求澄清子步骤**,其产出物喂给 proposal,而非替代 proposal。设计文档只能在 `openspec/changes/<id>/` 下,不能在 `docs/superpowers/specs/`。
 
 ---
 
-## Anti-Patterns 实录 — W1.5 session 复盘(2026-04-24)
+## Anti-Patterns 实录
 
-> 完整 autopsy(症状 / 真实代价 / 根因 / 自检清单)见 `docs/badcases/2026-04-24-w15-lead-did-not-dispatch-subagents.md`。
+### W1.5 session 复盘(2026-04-24)
+
+> 完整 autopsy 见 `docs/badcases/2026-04-24-w15-lead-did-not-dispatch-subagents.md`。
 > 本节仅保留 **R1–R4 规范性纠正**。
 
 ### 下次 session 的刚性纠正
@@ -191,6 +195,33 @@ Agent(subagent_type="everything-claude-code:kotlin-build-resolver",
 ```
 
 **R4 文件集不相交的 slice 必须并行** — 一条 message 里多个 `Agent` tool call + `isolation: "worktree"`。Lead 等所有 return 后顺序 merge worktree。W1.5 的 Section 11 (RelayServer) vs Section 12 (TransportPort) 就是典型可并行对,本次错过。
+
+### WS-reconnect session 复盘(2026-04-24)
+
+> 完整 autopsy 见 `docs/badcases/2026-04-24-skipped-openspec-used-brainstorming-as-main-flow.md`。
+
+**R5 新 capability / 架构变更必须先过 OpenSpec gate** — session 中识别到需求涉及新 capability、跨 spec、架构决策时,lead 的**第一个动作**:
+
+```
+1. Read openspec/AGENTS.md (如未读)
+2. Read openspec/project.md (如未读)
+3. 如需求模糊 → invoke superpowers:brainstorming 做澄清(≤15min),
+   产出喂给下一步,不独立成文
+4. invoke openspec:proposal → scaffold changes/<id>/ 三件套
+5. openspec validate <id> --strict → 绿
+6. 用户审批
+```
+
+**判断标准**（任一命中 → 必须走 OpenSpec）:
+- 需要新增 / 修改 `openspec/specs/<cap>/spec.md`
+- 涉及 WireMessage 新增 op / 字段变更
+- 引入新的模块 / 新的端口接口
+- 跨两个以上已有 capability 的交互变更
+
+**禁止**:
+- ❌ 把 `superpowers:brainstorming` 当主流程,产出到 `docs/superpowers/specs/`
+- ❌ 把 `superpowers:writing-plans` 当设计替代,跳过 proposal + spec deltas
+- ❌ 在没有 active `openspec/changes/<id>/` 的情况下进入 Phase 2 实施
 
 ---
 
