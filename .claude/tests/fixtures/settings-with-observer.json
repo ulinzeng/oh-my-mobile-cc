@@ -1,0 +1,15 @@
+{
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "~/.claude/plugins/everything-claude-code/hooks/observe.sh"
+          }
+        ]
+      }
+    ]
+  }
+}
