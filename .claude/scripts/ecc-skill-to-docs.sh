@@ -8,17 +8,19 @@
 set -euo pipefail
 export LC_ALL=en_US.UTF-8 LANG=en_US.UTF-8
 
-SOURCE="${1:?usage: ecc-skill-to-docs.sh <source.md> [out-dir]}"
-OUT_DIR="${2:-docs/skills/drafts}"
+# ---- pure helpers (do not depend on globals; safe to source) ----------------
 
-[[ -f "${SOURCE}" ]] || { echo "ERROR: source not found: ${SOURCE}" >&2; exit 1; }
-mkdir -p "${OUT_DIR}"
+# Split: print front-matter between the first two `---` markers.
+split_frontmatter() {
+  awk 'BEGIN{c=0} /^---[[:space:]]*$/{c++; if(c==2) exit; next} c==1{print}' "$1"
+}
 
-# Split front-matter and body. Assumes file begins with `---`.
-FM="$(awk 'BEGIN{c=0} /^---[[:space:]]*$/{c++; if(c==2) exit; next} c==1{print}' "${SOURCE}")"
-BODY="$(awk 'BEGIN{c=0} /^---[[:space:]]*$/{c++; next} c>=2{print}' "${SOURCE}")"
+# Split: print body after the second `---` marker.
+split_body() {
+  awk 'BEGIN{c=0} /^---[[:space:]]*$/{c++; next} c>=2{print}' "$1"
+}
 
-# Extract a scalar top-level key from the front-matter (strips quotes).
+# Extract a scalar top-level key from a front-matter string on stdin.
 get_scalar() {
   local key="$1"
   awk -v k="${key}" '
@@ -27,14 +29,12 @@ get_scalar() {
       gsub(/^["\x27]|["\x27]$/, "")
       print
       exit
-    }' <<<"${FM}"
+    }'
 }
 
-# Extract a list field (trigger or related-specs). Supports:
-#   key: "scalar"
-#   key: [a, b, c]   (flow)
-#   key:             (block form with leading `- item` lines)
-# Emits one item per line. Strips quotes + whitespace.
+# Extract a list field (trigger / related-specs) from a front-matter string
+# on stdin. Supports scalar, flow array, and block array forms. Emits one
+# item per line with surrounding quotes/whitespace stripped.
 extract_list() {
   local key="$1"
   awk -v k="${key}" '
@@ -75,7 +75,7 @@ extract_list() {
         # Any non-list, non-blank line ends the block.
         if ($0 !~ /^[[:space:]]*$/) in_block = 0
       }
-    }' <<<"${FM}"
+    }'
 }
 
 # Render one-item-per-line list as a YAML flow array: [a, b, c].
@@ -87,7 +87,8 @@ render_flow_array() {
   '
 }
 
-# normalize_triggers: read trigger from FM, emit YAML `triggers: [...]` line.
+# normalize_triggers: given a front-matter string on stdin, emit a
+# `triggers: [...]` YAML line (flow form).
 normalize_triggers() {
   local items; items="$(extract_list trigger)"
   if [[ -z "${items}" ]]; then
@@ -126,41 +127,62 @@ build_frontmatter() {
   printf -- '---\n'
 }
 
-ID="$(get_scalar id)"
-DOMAIN="$(get_scalar domain)"
-ACTION="$(get_scalar action)"
-CONF="$(get_scalar confidence)"
+# ---- orchestration ----------------------------------------------------------
 
-if [[ -z "${ID}" ]]; then
-  echo "ERROR: source missing 'id:' field" >&2
-  exit 1
+main() {
+  local SOURCE="${1:?usage: ecc-skill-to-docs.sh <source.md> [out-dir]}"
+  local OUT_DIR="${2:-docs/skills/drafts}"
+
+  [[ -f "${SOURCE}" ]] || { echo "ERROR: source not found: ${SOURCE}" >&2; exit 1; }
+  mkdir -p "${OUT_DIR}"
+
+  local FM BODY
+  FM="$(split_frontmatter "${SOURCE}")"
+  BODY="$(split_body "${SOURCE}")"
+
+  local ID DOMAIN ACTION CONF
+  ID="$(get_scalar id <<<"${FM}")"
+  DOMAIN="$(get_scalar domain <<<"${FM}")"
+  ACTION="$(get_scalar action <<<"${FM}")"
+  CONF="$(get_scalar confidence <<<"${FM}")"
+
+  if [[ -z "${ID}" ]]; then
+    echo "ERROR: source missing 'id:' field" >&2
+    exit 1
+  fi
+
+  local DESTFILE="${OUT_DIR}/${ID}.md"
+  if [[ -e "${DESTFILE}" ]]; then
+    echo "SKIP: ${DESTFILE} already exists"
+    return 0
+  fi
+
+  local DESCRIPTION="[${DOMAIN}] ${ACTION}"
+  local TRIGGERS_LINE
+  TRIGGERS_LINE="$(normalize_triggers <<<"${FM}")"
+
+  local RELATED_ITEMS RELATED_LINE=""
+  RELATED_ITEMS="$(extract_list related-specs <<<"${FM}")"
+  if [[ -n "${RELATED_ITEMS}" ]]; then
+    RELATED_LINE="related-specs: $(printf '%s\n' "${RELATED_ITEMS}" | render_flow_array)"
+  fi
+
+  {
+    build_frontmatter \
+      "${ID}" \
+      "${DESCRIPTION}" \
+      "${TRIGGERS_LINE}" \
+      "${RELATED_LINE}" \
+      "${SOURCE}" \
+      "${CONF}"
+    printf '\n'
+    printf '%s\n' "${BODY}" | redact_secrets
+  } > "${DESTFILE}"
+
+  echo "OK: wrote ${DESTFILE}"
+}
+
+# Only run main when executed directly (not when sourced for testing).
+if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
+  main "$@"
 fi
-
-DESTFILE="${OUT_DIR}/${ID}.md"
-if [[ -e "${DESTFILE}" ]]; then
-  echo "SKIP: ${DESTFILE} already exists"
-  exit 0
-fi
-
-DESCRIPTION="[${DOMAIN}] ${ACTION}"
-TRIGGERS_LINE="$(normalize_triggers)"
-
-RELATED_ITEMS="$(extract_list related-specs)"
-RELATED_LINE=""
-if [[ -n "${RELATED_ITEMS}" ]]; then
-  RELATED_LINE="related-specs: $(printf '%s\n' "${RELATED_ITEMS}" | render_flow_array)"
-fi
-
-{
-  build_frontmatter \
-    "${ID}" \
-    "${DESCRIPTION}" \
-    "${TRIGGERS_LINE}" \
-    "${RELATED_LINE}" \
-    "${SOURCE}" \
-    "${CONF}"
-  printf '\n'
-  printf '%s\n' "${BODY}" | redact_secrets
-} > "${DESTFILE}"
-
-echo "OK: wrote ${DESTFILE}"
