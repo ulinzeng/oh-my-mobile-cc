@@ -19,8 +19,10 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.launch
-import kotlinx.serialization.decodeFromString
 import kotlinx.serialization.encodeToString
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.jsonPrimitive
+import kotlinx.serialization.json.longOrNull
 
 /**
  * JVM actual of [TransportPort], backed by a Ktor [HttpClient] with the
@@ -42,10 +44,11 @@ public class KtorRelayClient(
     override suspend fun connect(
         endpoint: TransportEndpoint,
         identity: DeviceIdentity,
+        options: ConnectOptions,
     ): Result<TransportSession> =
         runCatching {
             val session = openSocket(endpoint)
-            handshake(session, endpoint, identity)
+            handshake(session, endpoint, identity, options)
         }.fold(
             onSuccess = { Result.success(it) },
             onFailure = { t -> Result.failure(mapError(t)) },
@@ -67,8 +70,9 @@ public class KtorRelayClient(
         session: DefaultClientWebSocketSession,
         endpoint: TransportEndpoint,
         identity: DeviceIdentity,
+        options: ConnectOptions,
     ): TransportSession {
-        sendClientHello(session, endpoint, identity)
+        sendClientHello(session, endpoint, identity, options)
         return when (val firstFrame = session.incoming.receive()) {
             is Frame.Text -> decodeHandshakeReply(session, firstFrame)
             else -> {
@@ -82,6 +86,7 @@ public class KtorRelayClient(
         session: DefaultClientWebSocketSession,
         endpoint: TransportEndpoint,
         identity: DeviceIdentity,
+        options: ConnectOptions,
     ) {
         val now = clock()
         val nonce = Base64Url.encode(random.nextBytes(NONCE_BYTES))
@@ -97,6 +102,7 @@ public class KtorRelayClient(
                 timestampMs = now,
                 nonce = nonce,
                 sig = Base64Url.encode(sig),
+                lastEventSeq = options.lastEventSeq,
             )
         session.send(Frame.Text(ProtocolJson.default.encodeToString<WireMessage>(hello)))
     }
@@ -113,7 +119,7 @@ public class KtorRelayClient(
                     throw RelayError.ProtocolViolation("unparseable first reply")
                 }
         return when (msg) {
-            is WireMessage.HelloOk -> KtorTransportSession(session)
+            is WireMessage.HelloOk -> KtorTransportSession(session, msg)
             is WireMessage.HelloErr -> {
                 session.close(CloseReason(CLOSE_POLICY, msg.reason))
                 throw RelayError.Rejected(msg.reason)
@@ -141,18 +147,19 @@ public class KtorRelayClient(
 /**
  * Post-handshake session wrapping an open [DefaultClientWebSocketSession].
  * Spawns an internal pump that converts inbound `Frame.Text` into
- * [WireMessage] emissions on a [MutableSharedFlow]. Dropped frames
+ * [ReceivedFrame] emissions on a [MutableSharedFlow]. Dropped frames
  * (binary, malformed) match the server-side "post-hello unparseable is
  * non-fatal" rule from `openspec/specs/protocol/spec.md` § 传输语义.
  */
 private class KtorTransportSession(
     private val session: DefaultClientWebSocketSession,
+    override val helloOk: WireMessage.HelloOk,
 ) : TransportSession {
     // replay=1 so a push that arrives before the first `collect` isn't lost —
     // critical for the handshake→first-push race where the relay may emit
     // ApprovalRequested before callers subscribe via `incoming.first()`.
     private val _incoming =
-        MutableSharedFlow<WireMessage>(
+        MutableSharedFlow<ReceivedFrame>(
             replay = 1,
             extraBufferCapacity = BUFFER_SIZE,
         )
@@ -162,11 +169,14 @@ private class KtorTransportSession(
             try {
                 for (frame in session.incoming) {
                     if (frame !is Frame.Text) continue
+                    val text = frame.readText()
                     val decoded =
                         runCatching {
-                            ProtocolJson.default.decodeFromString<WireMessage>(frame.readText())
+                            ProtocolJson.default.decodeFromString<WireMessage>(text)
                         }.getOrNull() ?: continue
-                    _incoming.emit(decoded)
+                    // Extract optional seq from the raw JSON envelope
+                    val seq = extractSeq(text)
+                    _incoming.emit(ReceivedFrame(seq = seq, message = decoded))
                 }
             } catch (_: ClosedReceiveChannelException) {
                 // remote closed — normal termination
@@ -174,7 +184,7 @@ private class KtorTransportSession(
         }
     }
 
-    override val incoming: Flow<WireMessage> = _incoming.asSharedFlow()
+    override val incoming: Flow<ReceivedFrame> = _incoming.asSharedFlow()
 
     override suspend fun send(message: WireMessage) {
         session.send(Frame.Text(ProtocolJson.default.encodeToString<WireMessage>(message)))
@@ -183,6 +193,13 @@ private class KtorTransportSession(
     override suspend fun close() {
         session.close(CloseReason(CLOSE_NORMAL, "client close"))
     }
+
+    /** Extract the top-level `seq` Long from raw JSON text, if present. */
+    private fun extractSeq(text: String): Long? =
+        runCatching {
+            val element = ProtocolJson.default.parseToJsonElement(text)
+            (element as? JsonObject)?.get("seq")?.jsonPrimitive?.longOrNull
+        }.getOrNull()
 
     private companion object {
         const val BUFFER_SIZE: Int = 64

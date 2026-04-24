@@ -47,6 +47,28 @@ public data class DeviceIdentity(
 }
 
 /**
+ * Optional parameters for [TransportPort.connect] that control
+ * reconnection-aware handshake behavior. The default (all-null) instance
+ * yields the same behavior as W1.0 first-connect.
+ */
+public data class ConnectOptions(
+    /** Highest event seq the client has already consumed. The relay uses
+     *  this to replay missed events after a reconnection handshake. */
+    public val lastEventSeq: Long? = null,
+)
+
+/**
+ * A single frame received from the relay, optionally stamped with the
+ * server-assigned monotonic sequence number. The [seq] is `null` for
+ * control frames (e.g. `ReplayEnd`, `SessionEnded`) that the relay does
+ * not stamp.
+ */
+public data class ReceivedFrame(
+    public val seq: Long? = null,
+    public val message: WireMessage,
+)
+
+/**
  * Port abstraction the mobile app + any relay test harness programs
  * against. Implementations live per-platform in `jvmMain` / `androidMain`
  * / `iosMain` — `jvmMain`'s `KtorRelayClient` is the only impl that
@@ -66,6 +88,7 @@ public interface TransportPort {
     public suspend fun connect(
         endpoint: TransportEndpoint,
         identity: DeviceIdentity,
+        options: ConnectOptions = ConnectOptions(),
     ): Result<TransportSession>
 
     /** Release any pooled resources (http engine, etc.). Idempotent. */
@@ -75,12 +98,20 @@ public interface TransportPort {
 /**
  * Live relay session handed out by [TransportPort.connect] on success.
  *
- * `incoming` emits every post-handshake `WireMessage` the relay pushes.
+ * [helloOk] carries the handshake metadata (server time, seq range) from
+ * the relay's `HelloOk` reply — callers use it for skew detection and
+ * replay-progress tracking.
+ *
+ * [incoming] emits every post-handshake frame the relay pushes, wrapped
+ * in [ReceivedFrame] so the caller can track per-event sequence numbers.
  * Implementations MUST drop unparseable frames with a warn log (per
- * protocol § 传输语义) rather than terminating the flow.
+ * protocol § 传输语义) rather than terminating the flow. The flow
+ * completes when the underlying connection closes.
  */
 public interface TransportSession {
-    public val incoming: Flow<WireMessage>
+    public val helloOk: WireMessage.HelloOk
+
+    public val incoming: Flow<ReceivedFrame>
 
     public suspend fun send(message: WireMessage)
 

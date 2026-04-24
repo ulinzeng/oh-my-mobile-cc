@@ -8,6 +8,7 @@ import kotlinx.coroutines.runBlocking
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertIs
+import kotlin.test.assertNotNull
 import kotlin.test.fail
 
 /**
@@ -35,9 +36,11 @@ class KtorRelayClientTest {
                             makeIdentity(),
                         )
                     val session = result.getOrElse { fail("expected success, got failure: $it") }
+                    assertNotNull(session.helloOk)
+                    assertEquals(1_700_000_000_000L, session.helloOk.serverTimeMs)
                     val pushed = session.incoming.first()
-                    assertIs<WireMessage.ApprovalRequested>(pushed)
-                    assertEquals("a1", pushed.approvalId)
+                    assertIs<WireMessage.ApprovalRequested>(pushed.message)
+                    assertEquals("a1", (pushed.message as WireMessage.ApprovalRequested).approvalId)
                     session.close()
                 } finally {
                     client.shutdown()
