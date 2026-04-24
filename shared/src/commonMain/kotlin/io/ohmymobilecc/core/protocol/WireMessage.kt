@@ -6,6 +6,7 @@ import kotlinx.serialization.descriptors.SerialDescriptor
 import kotlinx.serialization.descriptors.buildClassSerialDescriptor
 import kotlinx.serialization.encoding.Decoder
 import kotlinx.serialization.encoding.Encoder
+import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonDecoder
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonEncoder
@@ -76,12 +77,15 @@ public sealed class WireMessage {
         val timestampMs: Long,
         val nonce: String,
         val sig: String,
+        val lastEventSeq: Long? = null,
     ) : WireMessage()
 
     /** Relay acknowledgement of a successful hello — mirrors server time for client-side skew detection. */
     public data class HelloOk(
         val serverTimeMs: Long,
         val protocolVersion: Int,
+        val oldestSeq: Long = 0,
+        val latestSeq: Long = 0,
     ) : WireMessage()
 
     /**
@@ -104,6 +108,23 @@ public sealed class WireMessage {
     public data class FileListRequest(
         val sessionId: String,
         val path: String,
+    ) : WireMessage()
+
+    // -- replay.* (reconnection protocol, W1.5) --
+
+    /** Relay signals end of event replay after a reconnection. */
+    public data class ReplayEnd(
+        val replayedCount: Int,
+        val fromSeq: Long,
+        val toSeq: Long,
+    ) : WireMessage()
+
+    // -- session.* --
+
+    /** Relay notifies that a session has ended. */
+    public data class SessionEnded(
+        val sessionId: String,
+        val reason: String,
     ) : WireMessage()
 
     /** Any frame whose `op` we cannot type yet. */
@@ -163,6 +184,7 @@ public object WireMessageSerializer : KSerializer<WireMessage> {
                         ?: error("hello missing timestampMs"),
                     nonce = requireString(obj, "nonce"),
                     sig = requireString(obj, "sig"),
+                    lastEventSeq = obj["lastEventSeq"]?.jsonPrimitive?.longOrNull,
                 )
             "hello.ok" ->
                 WireMessage.HelloOk(
@@ -170,6 +192,8 @@ public object WireMessageSerializer : KSerializer<WireMessage> {
                         ?: error("hello.ok missing serverTimeMs"),
                     protocolVersion = obj["protocolVersion"]?.jsonPrimitive?.int
                         ?: error("hello.ok missing protocolVersion"),
+                    oldestSeq = obj["oldestSeq"]?.jsonPrimitive?.longOrNull ?: 0L,
+                    latestSeq = obj["latestSeq"]?.jsonPrimitive?.longOrNull ?: 0L,
                 )
             "hello.err" ->
                 WireMessage.HelloErr(
@@ -185,6 +209,22 @@ public object WireMessageSerializer : KSerializer<WireMessage> {
                     sessionId = requireString(obj, "sessionId"),
                     path = requireString(obj, "path"),
                 )
+            "replay.end" ->
+                WireMessage.ReplayEnd(
+                    replayedCount = obj["replayedCount"]?.jsonPrimitive?.int
+                        ?: error("replay.end missing replayedCount"),
+                    fromSeq =
+                        obj["fromSeq"]?.jsonPrimitive?.long
+                            ?: error("replay.end missing fromSeq"),
+                    toSeq =
+                        obj["toSeq"]?.jsonPrimitive?.long
+                            ?: error("replay.end missing toSeq"),
+                )
+            "session.ended" ->
+                WireMessage.SessionEnded(
+                    sessionId = requireString(obj, "sessionId"),
+                    reason = requireString(obj, "reason"),
+                )
             else -> WireMessage.Unknown(raw = obj)
         }
     }
@@ -199,7 +239,7 @@ public object WireMessageSerializer : KSerializer<WireMessage> {
         jsonEncoder.encodeJsonElement(encode(value))
     }
 
-    private fun encode(value: WireMessage): JsonElement =
+    internal fun encode(value: WireMessage): JsonElement =
         when (value) {
             is WireMessage.ChatMessage ->
                 buildJsonObject {
@@ -238,12 +278,15 @@ public object WireMessageSerializer : KSerializer<WireMessage> {
                     put("timestampMs", JsonPrimitive(value.timestampMs))
                     put("nonce", JsonPrimitive(value.nonce))
                     put("sig", JsonPrimitive(value.sig))
+                    value.lastEventSeq?.let { put("lastEventSeq", JsonPrimitive(it)) }
                 }
             is WireMessage.HelloOk ->
                 buildJsonObject {
                     put("op", JsonPrimitive("hello.ok"))
                     put("serverTimeMs", JsonPrimitive(value.serverTimeMs))
                     put("protocolVersion", JsonPrimitive(value.protocolVersion))
+                    if (value.oldestSeq != 0L) put("oldestSeq", JsonPrimitive(value.oldestSeq))
+                    if (value.latestSeq != 0L) put("latestSeq", JsonPrimitive(value.latestSeq))
                 }
             is WireMessage.HelloErr ->
                 buildJsonObject {
@@ -262,6 +305,19 @@ public object WireMessageSerializer : KSerializer<WireMessage> {
                     put("sessionId", JsonPrimitive(value.sessionId))
                     put("path", JsonPrimitive(value.path))
                 }
+            is WireMessage.ReplayEnd ->
+                buildJsonObject {
+                    put("op", JsonPrimitive("replay.end"))
+                    put("replayedCount", JsonPrimitive(value.replayedCount))
+                    put("fromSeq", JsonPrimitive(value.fromSeq))
+                    put("toSeq", JsonPrimitive(value.toSeq))
+                }
+            is WireMessage.SessionEnded ->
+                buildJsonObject {
+                    put("op", JsonPrimitive("session.ended"))
+                    put("sessionId", JsonPrimitive(value.sessionId))
+                    put("reason", JsonPrimitive(value.reason))
+                }
             is WireMessage.Unknown -> value.raw
         }
 
@@ -273,5 +329,23 @@ public object WireMessageSerializer : KSerializer<WireMessage> {
             ?: error("field '$key' missing or non-string in ${obj["op"]?.jsonPrimitive?.content ?: "<no op>"}")
 
     private val JsonPrimitive.long: Long get() = content.toLong()
+    private val JsonPrimitive.longOrNull: Long? get() = content.toLongOrNull()
     private val JsonPrimitive.int: Int get() = content.toInt()
+}
+
+/**
+ * Encodes a [WireMessage] to JSON with an additional top-level `seq` field.
+ *
+ * This is used by the relay to stamp outbound frames with their sequence number
+ * without polluting the [WireMessage] data classes themselves.
+ */
+public fun encodeWithSeq(
+    json: Json,
+    msg: WireMessage,
+    seq: Long,
+): String {
+    val element = WireMessageSerializer.encode(msg)
+    val obj = element as JsonObject
+    val withSeq = JsonObject(obj + ("seq" to JsonPrimitive(seq)))
+    return json.encodeToString(JsonElement.serializer(), withSeq)
 }
