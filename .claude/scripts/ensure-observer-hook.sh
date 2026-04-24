@@ -11,7 +11,7 @@
 # HOME is honored for test isolation.
 #
 # NEVER writes to $HOME/.claude/ — this script is strictly read-only.
-set -u
+set -euo pipefail
 
 settings="${HOME}/.claude/settings.json"
 

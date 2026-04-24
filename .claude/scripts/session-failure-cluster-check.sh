@@ -8,7 +8,10 @@
 # Spec: openspec/changes/add-doc-lifecycle-infra/specs/docs-lifecycle/spec.md
 #       Requirement "Failure-cluster hint".
 
-set -u
+# Intentionally NOT `set -e` — this script runs in SessionEnd and must never
+# abort the chain on a transient error (e.g. empty git log). Unset vars and
+# pipeline failures are still caught.
+set -uo pipefail
 
 cd "$(git rev-parse --show-toplevel 2>/dev/null || echo .)" || exit 0
 
