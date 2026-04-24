@@ -11,12 +11,14 @@ import io.ktor.websocket.close
 import io.ktor.websocket.readText
 import io.ohmymobilecc.core.protocol.ProtocolJson
 import io.ohmymobilecc.core.protocol.WireMessage
+import io.ohmymobilecc.core.protocol.encodeWithSeq
 import io.ohmymobilecc.relay.pairing.ClientHelloVerifier
 import io.ohmymobilecc.relay.pairing.ClockSeam
 import io.ohmymobilecc.relay.pairing.NonceCache
 import io.ohmymobilecc.relay.pairing.PubkeyRegistry
 import io.ohmymobilecc.relay.pairing.VerifyResult
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.channels.ClosedReceiveChannelException
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.launch
@@ -38,6 +40,8 @@ public data class RelayServerConfig(
     val outbound: SharedFlow<WireMessage>,
     val onInbound: suspend (WireMessage) -> Unit,
     val connections: SingleConnectionRegistry = SingleConnectionRegistry(),
+    val eventLog: EventLog = EventLog(),
+    val sequencedOutbound: SharedFlow<SequencedEvent>? = null,
 )
 
 /**
@@ -125,21 +129,95 @@ public object RelayServer {
                 WireMessage.HelloOk(
                     serverTimeMs = config.clock.nowMs(),
                     protocolVersion = PROTOCOL_VERSION,
+                    oldestSeq = config.eventLog.oldestSeq() ?: 0,
+                    latestSeq = config.eventLog.latestSeq(),
                 ),
             )
 
-            val pump =
-                session.launch {
-                    config.outbound.collect { msg -> session.sendWire(json, msg) }
+            val seqOutbound = config.sequencedOutbound
+            if (seqOutbound != null) {
+                val pump = session.launchSequencedPump(json, seqOutbound, hello.lastEventSeq, config.eventLog)
+                try {
+                    session.pumpInbound(json, config.onInbound)
+                } finally {
+                    pump.cancel()
                 }
-
-            try {
-                session.pumpInbound(json, config.onInbound)
-            } finally {
-                pump.cancel()
+            } else {
+                // Legacy path: no sequencedOutbound configured — plain fan-out.
+                val pump =
+                    session.launch {
+                        config.outbound.collect { msg -> session.sendWire(json, msg) }
+                    }
+                try {
+                    session.pumpInbound(json, config.onInbound)
+                } finally {
+                    pump.cancel()
+                }
             }
         } finally {
             config.connections.release(hello.sessionId, token)
+        }
+    }
+
+    /**
+     * Launch the sequenced outbound pump with optional replay.
+     *
+     * When [lastEventSeq] is non-null (reconnection), the flow is:
+     * 1. Subscribe to [sequencedOutbound] into an unlimited channel (buffer live events).
+     * 2. Replay historical events from [eventLog] whose seq > [lastEventSeq].
+     * 3. Send [WireMessage.ReplayEnd].
+     * 4. Drain the buffered channel, skipping any events already replayed (seq <= sentUpTo).
+     *
+     * When [lastEventSeq] is null (first connection), events are streamed directly
+     * from [sequencedOutbound] using [encodeWithSeq].
+     */
+    private fun DefaultWebSocketSession.launchSequencedPump(
+        json: Json,
+        sequencedOutbound: SharedFlow<SequencedEvent>,
+        lastEventSeq: Long?,
+        eventLog: EventLog,
+    ) = launch {
+        if (lastEventSeq != null) {
+            // -- Reconnection path: subscribe → replay → drain with dedup --
+            val buffer = Channel<SequencedEvent>(Channel.UNLIMITED)
+            val collector =
+                launch {
+                    sequencedOutbound.collect { buffer.send(it) }
+                }
+
+            try {
+                // Replay historical events.
+                val replayed = eventLog.replaySince(lastEventSeq)
+                var sentUpTo = lastEventSeq
+                for (event in replayed) {
+                    send(Frame.Text(encodeWithSeq(json, event.message, event.seq)))
+                    sentUpTo = event.seq
+                }
+
+                // Signal end of replay.
+                val replayEnd =
+                    WireMessage.ReplayEnd(
+                        replayedCount = replayed.size,
+                        fromSeq = replayed.firstOrNull()?.seq ?: 0,
+                        toSeq = replayed.lastOrNull()?.seq ?: 0,
+                    )
+                sendWire(json, replayEnd)
+
+                // Drain buffered live events, skipping already-replayed ones.
+                for (event in buffer) {
+                    if (event.seq > sentUpTo) {
+                        send(Frame.Text(encodeWithSeq(json, event.message, event.seq)))
+                    }
+                }
+            } finally {
+                collector.cancel()
+                buffer.cancel()
+            }
+        } else {
+            // -- First connection path: stream with seq --
+            sequencedOutbound.collect { event ->
+                send(Frame.Text(encodeWithSeq(json, event.message, event.seq)))
+            }
         }
     }
 
