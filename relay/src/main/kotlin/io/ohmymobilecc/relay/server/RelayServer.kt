@@ -198,8 +198,8 @@ public object RelayServer {
                 val replayEnd =
                     WireMessage.ReplayEnd(
                         replayedCount = replayed.size,
-                        fromSeq = replayed.firstOrNull()?.seq ?: 0,
-                        toSeq = replayed.lastOrNull()?.seq ?: 0,
+                        fromSeq = replayed.firstOrNull()?.seq?.minus(1) ?: lastEventSeq,
+                        toSeq = replayed.lastOrNull()?.seq ?: lastEventSeq,
                     )
                 sendWire(json, replayEnd)
 

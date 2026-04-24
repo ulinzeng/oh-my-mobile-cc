@@ -1,5 +1,6 @@
 package io.ohmymobilecc.core.protocol
 
+import co.touchlab.kermit.Logger
 import kotlinx.serialization.KSerializer
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.descriptors.SerialDescriptor
@@ -229,7 +230,10 @@ public object WireMessageSerializer : KSerializer<WireMessage> {
                     sessionId = requireString(obj, "sessionId"),
                     reason = requireString(obj, "reason"),
                 )
-            else -> WireMessage.Unknown(raw = obj)
+            else -> {
+                Logger.w("WireMessage") { "Unknown op: ${op ?: "<null>"}" }
+                WireMessage.Unknown(raw = obj)
+            }
         }
     }
 

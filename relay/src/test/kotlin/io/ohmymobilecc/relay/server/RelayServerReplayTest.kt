@@ -119,7 +119,7 @@ class RelayServerReplayTest {
                 val replayEnd = json.decodeFromString<WireMessage>((incoming.receive() as Frame.Text).readText())
                 assertIs<WireMessage.ReplayEnd>(replayEnd)
                 assertEquals(2, replayEnd.replayedCount)
-                assertEquals(e2.seq, replayEnd.fromSeq)
+                assertEquals(e1.seq, replayEnd.fromSeq) // exclusive: first replayed seq - 1
                 assertEquals(e3.seq, replayEnd.toSeq)
             }
         }

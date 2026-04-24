@@ -42,14 +42,14 @@ public class EventLog(
     public fun append(
         msg: WireMessage,
         nowMs: Long,
-    ): SequencedEvent {
-        val event =
-            SequencedEvent(
-                seq = seq.incrementAndGet(),
-                timestampMs = nowMs,
-                message = msg,
-            )
+    ): SequencedEvent =
         lock.write {
+            val event =
+                SequencedEvent(
+                    seq = seq.incrementAndGet(),
+                    timestampMs = nowMs,
+                    message = msg,
+                )
             val index = (head + count) % capacity
             ring[index] = event
             if (count == capacity) {
@@ -58,9 +58,8 @@ public class EventLog(
             } else {
                 count++
             }
+            event
         }
-        return event
-    }
 
     /**
      * Return every event whose `seq` is strictly greater than [afterSeq].
@@ -94,7 +93,10 @@ public class EventLog(
         }
 
     /** Sequence number of the newest event, or `0` if no events have been appended. */
-    public fun latestSeq(): Long = seq.get()
+    public fun latestSeq(): Long =
+        lock.read {
+            if (count == 0) 0L else ring[(head + count - 1) % capacity]!!.seq
+        }
 
     /** Number of events currently retained in the buffer. */
     public fun size(): Int = lock.read { count }
