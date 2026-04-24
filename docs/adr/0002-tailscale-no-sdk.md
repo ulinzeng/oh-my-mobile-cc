@@ -1,3 +1,9 @@
+---
+status: accepted
+date: 2026-04-22
+depends-on: []
+---
+
 # ADR-0002 依赖 Tailscale 但不集成 SDK
 
 - **状态**：Accepted

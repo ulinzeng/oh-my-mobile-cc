@@ -1,3 +1,9 @@
+---
+status: accepted
+date: 2026-04-22
+depends-on: []
+---
+
 # ADR-0001 选择 Kotlin Multiplatform
 
 - **状态**：Accepted
