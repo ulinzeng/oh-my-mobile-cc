@@ -89,6 +89,14 @@ assert_not_contains "${out04}" "/Users/alice" "04"
 assert_not_contains "${out04}" "/home/bob" "04"
 assert_not_contains "${out04}" "AKIAIOSFODNN7EXAMPLE" "04"
 assert_not_contains "${out04}" "sk-abc123" "04"
+assert_not_contains "${out04}" "API_KEY=sk-" "04"
+# spec "Scoped rule loading" demands .env-value redaction — any raw
+# assignment (KEY=value) adjacent to a .env reference must be stripped.
+assert_not_contains "${out04}" "secrets/.env" "04"
+assert_not_contains "${out04}" "API_KEY=sk-" "04"
+# spec "Scoped rule loading" demands .env-value redaction — any raw
+# assignment (KEY=value) adjacent to a .env reference must be stripped.
+assert_not_contains "${out04}" "secrets/.env" "04"
 echo "PASS (04-abspath-leak.md)"
 
 # --- Idempotency: running again on the same destination should SKIP ---
