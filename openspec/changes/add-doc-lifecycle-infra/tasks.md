@@ -67,8 +67,8 @@ the same group are file-disjoint and can run in parallel worktrees per
 ## Validation gate
 
 - [x] V1 `openspec validate add-doc-lifecycle-infra --strict` → green.
-- [ ] V2 Spec-compliance review subagent ✅.
-- [ ] V3 Code/quality review subagent ✅ (per user request).
+- [x] V2 Spec-compliance review subagent ✅ — APPROVED-WITH-NITS; all 5 requirements PASS.
+- [x] V3 Code/quality review subagent ✅ — two nits addressed in commit `c26dbf8` (tracked settings.json + deduped exports).
 - [x] V4 Spec deltas intentionally present under `openspec/changes/add-doc-lifecycle-infra/specs/docs-lifecycle/spec.md` — establishes the `docs-lifecycle` capability.
 
 ---
