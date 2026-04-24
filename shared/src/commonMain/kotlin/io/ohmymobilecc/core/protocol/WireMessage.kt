@@ -180,18 +180,21 @@ public object WireMessageSerializer : KSerializer<WireMessage> {
                 WireMessage.ClientHello(
                     deviceId = requireString(obj, "deviceId"),
                     sessionId = requireString(obj, "sessionId"),
-                    timestampMs = obj["timestampMs"]?.jsonPrimitive?.long
-                        ?: error("hello missing timestampMs"),
+                    timestampMs =
+                        obj["timestampMs"]?.jsonPrimitive?.long
+                            ?: error("hello missing timestampMs"),
                     nonce = requireString(obj, "nonce"),
                     sig = requireString(obj, "sig"),
                     lastEventSeq = obj["lastEventSeq"]?.jsonPrimitive?.longOrNull,
                 )
             "hello.ok" ->
                 WireMessage.HelloOk(
-                    serverTimeMs = obj["serverTimeMs"]?.jsonPrimitive?.long
-                        ?: error("hello.ok missing serverTimeMs"),
-                    protocolVersion = obj["protocolVersion"]?.jsonPrimitive?.int
-                        ?: error("hello.ok missing protocolVersion"),
+                    serverTimeMs =
+                        obj["serverTimeMs"]?.jsonPrimitive?.long
+                            ?: error("hello.ok missing serverTimeMs"),
+                    protocolVersion =
+                        obj["protocolVersion"]?.jsonPrimitive?.int
+                            ?: error("hello.ok missing protocolVersion"),
                     oldestSeq = obj["oldestSeq"]?.jsonPrimitive?.longOrNull ?: 0L,
                     latestSeq = obj["latestSeq"]?.jsonPrimitive?.longOrNull ?: 0L,
                 )
@@ -211,8 +214,9 @@ public object WireMessageSerializer : KSerializer<WireMessage> {
                 )
             "replay.end" ->
                 WireMessage.ReplayEnd(
-                    replayedCount = obj["replayedCount"]?.jsonPrimitive?.int
-                        ?: error("replay.end missing replayedCount"),
+                    replayedCount =
+                        obj["replayedCount"]?.jsonPrimitive?.int
+                            ?: error("replay.end missing replayedCount"),
                     fromSeq =
                         obj["fromSeq"]?.jsonPrimitive?.long
                             ?: error("replay.end missing fromSeq"),
