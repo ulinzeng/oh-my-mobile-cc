@@ -24,22 +24,23 @@ import kotlinx.serialization.json.Json
  * Exceptions propagate — malformed input is the caller's problem, this
  * operator only cares about line boundaries.
  */
-public fun Flow<String>.ndjsonLines(): Flow<String> = flow {
-    val buffer = StringBuilder()
-    collect { chunk ->
-        buffer.append(chunk)
-        var newlineIdx = buffer.indexOf('\n')
-        while (newlineIdx >= 0) {
-            // Strip optional \r before the \n so we cleanly handle CRLF.
-            val end = if (newlineIdx > 0 && buffer[newlineIdx - 1] == '\r') newlineIdx - 1 else newlineIdx
-            val line = buffer.substring(0, end)
-            buffer.delete(0, newlineIdx + 1)
-            if (line.isNotBlank()) emit(line)
-            newlineIdx = buffer.indexOf('\n')
+public fun Flow<String>.ndjsonLines(): Flow<String> =
+    flow {
+        val buffer = StringBuilder()
+        collect { chunk ->
+            buffer.append(chunk)
+            var newlineIdx = buffer.indexOf('\n')
+            while (newlineIdx >= 0) {
+                // Strip optional \r before the \n so we cleanly handle CRLF.
+                val end = if (newlineIdx > 0 && buffer[newlineIdx - 1] == '\r') newlineIdx - 1 else newlineIdx
+                val line = buffer.substring(0, end)
+                buffer.deleteRange(0, newlineIdx + 1)
+                if (line.isNotBlank()) emit(line)
+                newlineIdx = buffer.indexOf('\n')
+            }
         }
+        // Intentionally drop trailing partial line — caller's responsibility.
     }
-    // Intentionally drop trailing partial line — caller's responsibility.
-}
 
 /**
  * Convenience: frame the upstream `Flow<String>` into NDJSON lines and
@@ -49,8 +50,9 @@ public fun Flow<String>.ndjsonLines(): Flow<String> = flow {
  * Malformed JSON propagates as `SerializationException`; unknown types
  * fall back to `CCEvent.Unknown` per the decoder contract.
  */
-public fun Flow<String>.ccEvents(json: Json = ProtocolJson.default): Flow<CCEvent> = flow {
-    ndjsonLines().collect { line ->
-        emit(json.decodeFromString(CCEvent.serializer(), line))
+public fun Flow<String>.ccEvents(json: Json = ProtocolJson.default): Flow<CCEvent> =
+    flow {
+        ndjsonLines().collect { line ->
+            emit(json.decodeFromString(CCEvent.serializer(), line))
+        }
     }
-}

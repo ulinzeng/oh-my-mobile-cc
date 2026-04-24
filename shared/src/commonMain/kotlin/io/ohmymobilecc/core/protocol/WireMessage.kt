@@ -61,6 +61,37 @@ public sealed class WireMessage {
         val reason: String,
     ) : WireMessage()
 
+    // -- hello.* (W1.5 pairing handshake) --
+
+    /**
+     * First WS frame sent by the mobile client after the TCP/WSS upgrade.
+     * Proves possession of the paired Ed25519 private key for [sessionId].
+     *
+     * See `openspec/specs/pairing/spec.md` §Ed25519 会话签名 for the
+     * canonical signing input: `sessionId || "|" || timestampMs || "|" || nonce`.
+     */
+    public data class ClientHello(
+        val deviceId: String,
+        val sessionId: String,
+        val timestampMs: Long,
+        val nonce: String,
+        val sig: String,
+    ) : WireMessage()
+
+    /** Relay acknowledgement of a successful hello — mirrors server time for client-side skew detection. */
+    public data class HelloOk(
+        val serverTimeMs: Long,
+        val protocolVersion: Int,
+    ) : WireMessage()
+
+    /**
+     * Relay rejection of a hello. [reason] is one of: `skew`, `nonce`, `sig`,
+     * `revoked`, `unpaired`, `duplicate-session`, `malformed`, `expected-hello`.
+     */
+    public data class HelloErr(
+        val reason: String,
+    ) : WireMessage()
+
     // -- terminal.* (stubbed; full shape arrives with W3 change proposal) --
 
     public data class TerminalOutput(
@@ -124,6 +155,26 @@ public object WireMessageSerializer : KSerializer<WireMessage> {
                     approvalId = requireString(obj, "approvalId"),
                     reason = requireString(obj, "reason"),
                 )
+            "hello" ->
+                WireMessage.ClientHello(
+                    deviceId = requireString(obj, "deviceId"),
+                    sessionId = requireString(obj, "sessionId"),
+                    timestampMs = obj["timestampMs"]?.jsonPrimitive?.long
+                        ?: error("hello missing timestampMs"),
+                    nonce = requireString(obj, "nonce"),
+                    sig = requireString(obj, "sig"),
+                )
+            "hello.ok" ->
+                WireMessage.HelloOk(
+                    serverTimeMs = obj["serverTimeMs"]?.jsonPrimitive?.long
+                        ?: error("hello.ok missing serverTimeMs"),
+                    protocolVersion = obj["protocolVersion"]?.jsonPrimitive?.int
+                        ?: error("hello.ok missing protocolVersion"),
+                )
+            "hello.err" ->
+                WireMessage.HelloErr(
+                    reason = requireString(obj, "reason"),
+                )
             "terminal.output" ->
                 WireMessage.TerminalOutput(
                     sessionId = requireString(obj, "sessionId"),
@@ -179,6 +230,26 @@ public object WireMessageSerializer : KSerializer<WireMessage> {
                     put("approvalId", JsonPrimitive(value.approvalId))
                     put("reason", JsonPrimitive(value.reason))
                 }
+            is WireMessage.ClientHello ->
+                buildJsonObject {
+                    put("op", JsonPrimitive("hello"))
+                    put("deviceId", JsonPrimitive(value.deviceId))
+                    put("sessionId", JsonPrimitive(value.sessionId))
+                    put("timestampMs", JsonPrimitive(value.timestampMs))
+                    put("nonce", JsonPrimitive(value.nonce))
+                    put("sig", JsonPrimitive(value.sig))
+                }
+            is WireMessage.HelloOk ->
+                buildJsonObject {
+                    put("op", JsonPrimitive("hello.ok"))
+                    put("serverTimeMs", JsonPrimitive(value.serverTimeMs))
+                    put("protocolVersion", JsonPrimitive(value.protocolVersion))
+                }
+            is WireMessage.HelloErr ->
+                buildJsonObject {
+                    put("op", JsonPrimitive("hello.err"))
+                    put("reason", JsonPrimitive(value.reason))
+                }
             is WireMessage.TerminalOutput ->
                 buildJsonObject {
                     put("op", JsonPrimitive("terminal.output"))
@@ -202,4 +273,5 @@ public object WireMessageSerializer : KSerializer<WireMessage> {
             ?: error("field '$key' missing or non-string in ${obj["op"]?.jsonPrimitive?.content ?: "<no op>"}")
 
     private val JsonPrimitive.long: Long get() = content.toLong()
+    private val JsonPrimitive.int: Int get() = content.toInt()
 }

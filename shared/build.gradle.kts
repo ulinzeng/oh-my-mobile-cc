@@ -63,11 +63,19 @@ kotlin {
         androidMain.dependencies {
             implementation(libs.ktor.client.cio)
             implementation(libs.sqldelight.android.driver)
+            implementation(libs.bouncycastle.bcprov)
         }
 
         jvmMain.dependencies {
             implementation(libs.ktor.client.cio)
             implementation(libs.sqldelight.sqlite.driver)
+            implementation(libs.bouncycastle.bcprov)
+        }
+
+        jvmTest.dependencies {
+            implementation(libs.ktor.server.core)
+            implementation(libs.ktor.server.netty)
+            implementation(libs.ktor.server.websockets)
         }
 
         iosMain.dependencies {
